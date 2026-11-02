@@ -49,7 +49,9 @@ class SecurityTests(unittest.TestCase):
 
     def test_upload_budget_releases_on_invalid_body_and_allows_normal_body(self):
         handler = self.handler('/api/upload', b'x' * 40000, {'owner':True})
-        self.assertEqual(handler.dispatch()[0], 400)
+        handler.reply = Mock(wraps=handler.reply)
+        handler.dispatch()
+        self.assertEqual(handler.reply.call_args.args[0], 400)
         slot = handler.server.upload_slot
         self.assertTrue(slot.acquire(blocking=False))
         handler.rfile = Mock()

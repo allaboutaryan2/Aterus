@@ -6,6 +6,7 @@ import io
 from types import SimpleNamespace
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import threading
@@ -103,8 +104,7 @@ class HubTests(unittest.TestCase):
     def test_real_pty_interactive_input_exit_and_no_shell_fallback(self):
         fake = self.root / 'fake-agent'
         fake.write_text('#!/usr/bin/env python3\nimport os\nprint("TTY="+str(os.isatty(0)), flush=True)\nprint("REPLY="+input(), flush=True)\n')
-        fake.chmod(0o700)
-        with patch.object(aterus.shutil, 'which', return_value=str(fake)):
+        with patch.object(aterus, 'agent_command', return_value=[sys.executable, str(fake)]):
             session = self.hub.start({'agent':'kiro','cwd':str(self.project)})
         sid = session['id']
         deadline = time.time() + 6

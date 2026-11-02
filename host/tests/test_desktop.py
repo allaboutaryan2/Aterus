@@ -63,7 +63,11 @@ class DesktopTests(unittest.TestCase):
     def test_modern_per_user_opencode_is_selected_without_changing_global_path(self):
         import agents
         candidate=self.root/'.opencode'/'bin'/('opencode.exe' if os.name=='nt' else 'opencode')
-        candidate.parent.mkdir(parents=True);candidate.write_text('fixture');candidate.chmod(0o700)
+        candidate.parent.mkdir(parents=True)
+        if os.name == 'nt':
+            candidate.write_text('fixture');candidate.chmod(0o700)
+        else:
+            candidate.symlink_to(sys.executable)
         original=agents.EXECUTABLES['opencode']
         try:
             with patch.object(agents,'controls',side_effect=[{'variant':'legacy-go'},{'variant':'modern'}]):

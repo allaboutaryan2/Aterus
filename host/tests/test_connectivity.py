@@ -78,10 +78,15 @@ class ConnectorExecutableTests(unittest.TestCase):
             binary = Path(directory) / 'vendor' / 'bin' / ('cloudflared.exe' if os.name == 'nt' else 'cloudflared')
             binary.parent.mkdir(parents=True)
             self.assertIsNone(connectivity.connector_executable())
-            binary.write_bytes(b'fixture only')
-            binary.chmod(0o700)
+            if os.name == 'nt':
+                binary.write_bytes(b'fixture only')
+                binary.chmod(0o700)
+            else:
+                binary.symlink_to(sys.executable)
             self.assertEqual(connectivity.connector_executable(), str(binary))
             if os.name != 'nt':
+                binary.unlink()
+                binary.write_bytes(b'fixture only')
                 binary.chmod(0o600)
                 self.assertIsNone(connectivity.connector_executable())
 
@@ -90,8 +95,11 @@ class ConnectorExecutableTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory, patch.object(connectivity, 'CONNECTOR_ROOT', Path(directory)), patch.object(connectivity.shutil, 'which', return_value='C:\\bin\\cloudflared.cmd'), patch.object(connectivity, 'os', windows_os):
             binary = Path(directory) / 'vendor' / 'bin' / 'cloudflared.exe'
             binary.parent.mkdir(parents=True)
-            binary.write_bytes(b'fixture only')
-            binary.chmod(0o700)
+            if os.name == 'nt':
+                binary.write_bytes(b'fixture only')
+                binary.chmod(0o700)
+            else:
+                binary.symlink_to(sys.executable)
             self.assertEqual(connectivity.connector_executable(), str(binary))
 
 
@@ -261,9 +269,11 @@ class QuickTunnelTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             script = Path(directory) / 'cloudflared-fixture'
             script.write_text('#!' + sys.executable + '\nimport sys,time\nprint("| ' + ORIGIN + ' |",file=sys.stderr,flush=True)\nprint("Registered tunnel connection",file=sys.stderr,flush=True)\ntime.sleep(60)\n')
-            script.chmod(0o700)
             self.mocks[0].return_value = str(script)
-            self.tunnel.start()
+            popen = subprocess.Popen
+            # Interpret fixture data without executing files on the temp mount.
+            with patch.object(connectivity.subprocess, 'Popen', side_effect=lambda argv, **kwargs:popen([sys.executable, str(script), *argv[1:]], **kwargs)):
+                self.tunnel.start()
             self.until(lambda: self.tunnel.status()['state'] == 'ready')
             child = self.tunnel._process
             self.assertIsNone(child.poll())

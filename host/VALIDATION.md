@@ -126,3 +126,11 @@ docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,size=256
 ```
 
 The image copies only host source, runs without host mounts or credentials, and uses an unprivileged container user. Tests cover valid pairing after invalid traffic, aliases, single-use codes, workspace changes, descriptor-based directory-swap rejection, early body rejection, upload-slot release, worker admission, trickled header/body deadlines and normal requests after cleanup. These tests remain unexecuted in this session.
+
+### First user-run Docker result and fixture correction
+
+The supplied container output ran 98 tests: 91 passed, 5 failed, 1 errored, and the native Windows test was skipped. Seven of the eight security regressions passed; the upload-budget case errored because its assertion expected dispatch() to return a tuple on the exception path, although the handler sends its error response and returns None. That assertion now checks the captured reply status.
+
+The five failures involved executable test fixtures in /tmp, consistent with a noexec temporary mount. Fixtures now use the container's existing executable Python interpreter; executable-discovery fixtures reference that interpreter, with a separate non-executable-file negative control. The real helper lifecycle fixture still launches and stops an owned child, but reads the fixture script as interpreter data. Application executable checks and container mount/capability/network restrictions are not changed.
+
+These harness corrections have passed syntax and whitespace checks only. The corrected 98-test suite has not yet been rerun successfully. Docker API access is still denied to the assistant session. Run `bash scripts/check-security.sh` from the repository root; it preserves the existing isolated container restrictions, records output to the ignored security-test-results.txt file, and preserves the Docker test exit status. Do not merge or replace the published build until the corrected run passes.
