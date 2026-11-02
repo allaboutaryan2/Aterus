@@ -1,0 +1,11 @@
+{
+  "name": "aterus-web",
+  "version": "0.2.0",
+  "private": true,
+  "scripts": {
+    "start": "node backend/server.cjs",
+    "build": "node check.cjs",
+    "test": "node check.cjs && node tests/pwa.cjs && node --test tests/backend.cjs"
+  },
+  "engines": {"node": ">=22"}
+}

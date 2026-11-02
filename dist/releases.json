@@ -1,0 +1,20 @@
+{
+  "product": "Aterus",
+  "stage": "development",
+  "artifacts": [
+    {
+      "file": "Aterus-mac-arm64.zip",
+      "platform": "macOS Apple Silicon",
+      "size_bytes": 24312146,
+      "sha256": "d68dbc85f37cb27eb625967e7a493dcb8db14eba697640676345852aecd44b79"
+    },
+    {
+      "file": "Aterus-host.zip",
+      "platform": "source / Windows setup",
+      "size_bytes": 230666,
+      "sha256": "ccb3ea61e1aef9a8eaa2e8d8b36ed3d88898ae23496bf56ee76af615244e90f1"
+    }
+  ],
+  "native_windows_verified": false,
+  "physical_phone_verified": false
+}

@@ -103,3 +103,11 @@ Public-page inspection through the web-reader tool was unavailable after deploym
 Implemented a desktop workspace chooser, per-user Aterus data, opt-in sign-in startup, bundled macOS arm64 connector, explicit temporary HTTPS activation, local QR generation and pending phone pairing requiring desktop verification/approval. Pair requests expire, secrets remain in memory, and tokens are issued once after approval. Connection shutdown clears pairing state. PWA installation guidance and reconnect/update behavior are included.
 
 Validation: 88 Python tests: 87 passed, 1 native Windows skip. Three JavaScript fixture suites passed. Packaged Mac app self-test returned HTTP shell 200, unauthenticated API 401 and local QR output with connector present; no tunnel started. Frozen worker real PTY execution also passed. No physical phone, native Windows GUI, QR scan, actual tunnel route or background notification test has passed. The Apple Silicon app is a development build, without Developer ID signing/notarization. Stable managed relay, signed automatic native updates, arbitrary external-terminal control and background push remain gaps.
+
+## Public mobile/PWA and deployment update
+
+The public site now has an original responsive redesign, local brand icons, standalone manifest, iPhone Safari guidance, single-use deferred install prompt, offline/reconnect notice, user-triggered service-worker updates and a public-shell-only cache allowlist. It is a setup/download/connect launcher; private terminal control remains on each paired host origin. No centralized multi-user relay is implemented.
+
+Deployment configuration: Vercel static output and security headers; Render free-plan Node public release/health service; UptimeRobot five-minute monitor provisioning with exact-URL deduplication and verified TLS. Provider account access is still required for permanent named deployment and monitor activation. Fixture checks are not physical phone or rendered-browser verification.
+
+Desktop source adds safe-area support and a visual-viewport-aware terminal layout for phone keyboards. The three existing JavaScript fixture suites pass, including a simulated keyboard viewport resize. Real iPhone keyboard/layout validation remains pending.

@@ -7,6 +7,7 @@ function hostOrigin(value){
 }
 document.getElementById('connect-form').addEventListener('submit',event=>{
   event.preventDefault();
+  if(navigator.onLine===false){document.getElementById('connect-error').textContent='Reconnect to the internet before opening your computer.';return;}
   try{location.assign(hostOrigin(document.getElementById('host-url').value.trim()));}
   catch(error){document.getElementById('connect-error').textContent=error.message;}
 });
