@@ -27,5 +27,5 @@ if sys.platform == 'darwin':
     app = BUNDLE(collection, name='Aterus.app', icon=str(root/'public'/'Aterus.icns'),
                  bundle_identifier='app.aterus.desktop',
                  info_plist={'CFBundleName':'Aterus', 'CFBundleDisplayName':'Aterus',
-                             'CFBundleShortVersionString':'0.1.0', 'CFBundleVersion':'1',
+                             'CFBundleShortVersionString':'0.1.1', 'CFBundleVersion':'2',
                              'NSHighResolutionCapable':True})

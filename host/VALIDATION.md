@@ -1,5 +1,11 @@
 # Aterus validation — 1 November 2026
 
+## Current security verification: passing isolated Docker run
+
+The saved user-run Docker output for source revision 122da46442325f060c69b550d35b86568ebc5537 reports 98 tests in 13.761 seconds, OK (skipped=1): 97 passed, including all eight security regressions, with only native Windows ConPTY execution skipped. Earlier failed fixture runs below are historical. The run used an unprivileged container, no network, read-only root filesystem, no host mounts, dropped capabilities and bounded resources.
+
+The three low-severity findings are addressed by the tested source changes: bounded HTTP admission/deadlines and early authentication; current-workspace authorization plus pinned directory descriptors; and valid-code pairing recovery without weakening owner approval. The focused original/alternate triggers and normal-host controls in this suite pass. This does not establish physical phone, native Windows or full native-binary/minified-terminal audit coverage.
+
 ## Automated results
 
 Command: `PYTHONDONTWRITEBYTECODE=1 python3 -m unittest discover -s tests -v`

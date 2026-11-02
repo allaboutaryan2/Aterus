@@ -23,4 +23,4 @@ See [DEPLOY.md](DEPLOY.md) for GitHub, Vercel, Render and UptimeRobot setup. Pre
 
 The desktop downloads contain third-party notices. `dist/releases.json` records archive SHA-256 checksums; this is an integrity record, not a code-signing certificate. The Mac app has no Apple Developer ID notarization.
 
-Security candidate: see `host/VALIDATION.md`. The draft patch is not a verified security release; isolated Docker regressions are blocked by local Docker API permissions.
+Security regression verification: the isolated Docker suite passed 97 tests, including all eight security regressions; native Windows execution remains skipped. See `host/VALIDATION.md` for scope, historical runs and remaining limitations.
