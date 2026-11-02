@@ -13,6 +13,14 @@ Aterus has a desktop host and a browser/PWA client. Each person runs a host on t
 
 Phones are clients; they do not run desktop CLI agents. Keep the host computer awake and online.
 
+## Convenient desktop and phone setup
+
+On Apple Silicon Mac, open the development Aterus.app, choose a workspace, then open Devices in its browser window. Select Enable phone access, scan the QR in your phone camera, compare the six-digit verification on both devices and approve on the computer. On iPhone use Safari → Share → Add to Home Screen; Android offers Install when eligible.
+
+The bundled Cloudflare connector creates temporary public HTTPS only after your explicit click. The URL changes after restart. Desktop approval and device authentication remain required. Stop phone access to revoke the route. No tunnel was activated during automated validation. Physical phone scanning, remote connectivity and notifications remain unverified. Background push is not implemented.
+
+The Mac app bundles Python and the connector. It is an ad-hoc signed development build, without Apple notarization. The control window offers optional sign-in startup and an update-page link; native updates are manual. Windows native packaging is pending; source setup remains available.
+
 ## Start your own host
 
 macOS:
