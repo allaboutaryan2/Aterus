@@ -1,0 +1,4 @@
+Aterus includes @xterm/xterm 6.1.0-beta.304, commit c58ea3637f3968e0e6e79cd92cf9aace7ef89ee2.
+Upstream: https://github.com/xtermjs/xterm.js
+Browser distribution and CSS sourced from the locally installed Cursor dependency.
+License: MIT; see xterm-LICENSE.txt. This dependency is not original Aterus code.

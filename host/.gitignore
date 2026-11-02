@@ -1,0 +1,8 @@
+.aterus-data/
+__pycache__/
+*.pyc
+.DS_Store
+.build-venv/
+build/
+dist/
+.venv/

@@ -1,0 +1,5 @@
+# Build on the target OS in an isolated environment; no automatic installation.
+# PyInstaller is GPL-2.0-or-later with its distribution bootloader exception.
+PyInstaller==6.16.0
+# Native Windows terminal adapter; MIT. Not required on macOS/Linux.
+pywinpty==3.1.2; sys_platform == "win32"

@@ -1,0 +1,3 @@
+# Optional native Windows ConPTY support. Python 3.10+, Windows 10/11.
+# MIT; installed separately, not copied into Aterus.
+pywinpty==3.1.2; sys_platform == "win32"

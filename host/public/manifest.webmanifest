@@ -1,0 +1,25 @@
+{
+  "id": "/",
+  "name": "Aterus \u2014 Your agents, within reach",
+  "short_name": "Aterus",
+  "description": "Access your paired computer's coding agents.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#f5f5ef",
+  "theme_color": "#18231c",
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}

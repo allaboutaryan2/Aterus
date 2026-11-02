@@ -1,0 +1,7 @@
+# Replace this hostname with your own HTTPS hostname. This is configuration only;
+# Aterus never starts a tunnel or publishes your desktop automatically.
+aterus.example.com {
+    reverse_proxy 127.0.0.1:4380
+}
+# Start Aterus with --public-url https://aterus.example.com.
+# Keep the upstream private/loopback-only. Each user needs their own host and pairing.
