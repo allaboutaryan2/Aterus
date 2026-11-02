@@ -139,3 +139,20 @@ Validation: 88 Python tests: 87 passed, 1 native Windows skip. Three JavaScript 
 The source PWA now tracks the visual viewport when the phone keyboard opens, respects screen safe areas, and keeps terminal input and horizontally scrollable 44px keyboard controls reachable. Existing JavaScript fixtures pass with a simulated 360px viewport; physical phone rendering remains unverified. The rebuilt native Mac app self-test again returned shell 200 / unpaired API 401 with no tunnel activation.
 
 The public portal source is prepared for Vercel, with an installable public launcher, original responsive layout and public-only offline caching. A separate Render public release/health service and five-minute UptimeRobot provisioning script are available. These are not a centralized multi-user session relay; users still connect to their own paired HTTPS host. Permanent Vercel/Render deployment and UptimeRobot activation require provider account access.
+
+## Security patch candidate — verification blocked
+
+Eight independent static security reviews reported three low-severity issues: unbounded HTTP worker/body resources before pairing; persisted sessions exposing files outside a later-selected workspace; and invalid pairing attempts exhausting a shared quota for valid code holders. The review explicitly leaves native binary internals and the full minified terminal implementation partially unaudited.
+
+This branch contains a candidate patch: authenticate protected POSTs before body reads; reject non-API POSTs without body reads; cap global/per-connection-client workers with an absolute header/body deadline; serialize large upload parsing; reauthorize saved sessions against the active workspace; pin project directory descriptors for listing, preview, download and upload; and let valid active pairing codes proceed despite invalid-attempt throttling. Session history stays stored and becomes accessible when its workspace is selected again.
+
+Python AST parsing, JavaScript syntax and the unchanged public portal/backend/monitor fixtures pass. Host security regressions have NOT run: Docker API access failed with permission denied at unix:///Users/apple/.docker/run/docker.sock. Applicable AGENTS.md requires vulnerability reproductions in isolated Docker. The security outcome is BLOCKED pending dynamic verification, not verified fixed. Existing published download binaries are not replaced by this candidate.
+
+Run from the repository root with authorized Docker access:
+
+```sh
+docker build -f host/Dockerfile.security -t aterus-security-check .
+docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev,size=256m --cap-drop ALL --security-opt no-new-privileges --pids-limit 128 --memory 512m --cpus 2 aterus-security-check
+```
+
+The image copies only host source, runs without host mounts or credentials, and uses an unprivileged container user. Tests cover valid pairing after invalid traffic, aliases, single-use codes, workspace changes, descriptor-based directory-swap rejection, early body rejection, upload-slot release, worker admission, trickled header/body deadlines and normal requests after cleanup. These tests remain unexecuted in this session.

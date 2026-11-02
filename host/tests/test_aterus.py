@@ -54,7 +54,7 @@ class HubTests(unittest.TestCase):
             worker = SimpleNamespace(stdin=io.BytesIO(), stdout=io.BytesIO((json.dumps({'exit':code})+'\n').encode()),
                                      poll=lambda:None, wait=lambda:code)
             self.hub.live[sid] = worker
-            with patch.object(self.hub, 'session', wraps=self.hub.session) as read:
+            with patch.object(self.hub, 'rows', wraps=self.hub.rows) as read:
                 if state == 'running':
                     self.hub.control(sid, {'input':'aGVsbG8='})
                     self.assertEqual(worker.stdin.getvalue(), b'{"input": "aGVsbG8="}\n')
@@ -63,7 +63,7 @@ class HubTests(unittest.TestCase):
                         self.hub.control(sid, {'input':'aGVsbG8='})
                     self.assertEqual(worker.stdin.getvalue(), b'')
                 self.assertEqual(read.call_count, 1)
-            with patch.object(self.hub, 'session', wraps=self.hub.session) as read:
+            with patch.object(self.hub, 'rows', wraps=self.hub.rows) as read:
                 self.hub.collect(sid, worker)
                 self.assertEqual(read.call_count, 1)
             self.assertEqual(self.hub.session(sid)['state'], expected)
