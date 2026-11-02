@@ -1,8 +1,8 @@
 # Aterus
 
-Your coding agents, within reach. Original public website and installable PWA launcher, with a dependency-free Node public release/health service for Render.
+Your coding agents, within reach. Public website, installable PWA launcher, downloads and release/health API served together by a dependency-free Node service on Render.
 
-- Frontend: responsive static HTML/CSS/JavaScript, Vercel-ready. iPhone Safari installation guidance, Android install prompt, offline public shell and intentional updates.
+- Frontend: responsive static HTML/CSS/JavaScript at `/`. iPhone Safari installation guidance, Android install prompt, offline public shell and intentional updates.
 - Backend: `/healthz` and `/v1/releases`. No credentials, private projects, user sessions or arbitrary outbound proxy endpoints.
 - Desktop host: included source and Apple Silicon development downloads. Each person runs agents on their own computer and explicitly approves phone pairing.
 
@@ -15,11 +15,11 @@ npm test
 python3 -m unittest discover -s tests -p 'test_*.py' -v
 ```
 
-`npm start` serves the public API on `PORT` (default 10000). For local frontend preview: `python3 -m http.server 8080 --directory dist`. Production uses HTTPS for service workers and installation.
+`npm start` serves the website, downloads and public API on `PORT` (default 10000). Production uses HTTPS for service workers and installation.
 
 The complete desktop host implementation and its tests are in `host/`. To verify the host: `cd host`, then `python3 -m unittest discover -s tests -q` and `node tests/test_browser_glue.cjs`.
 
-See [DEPLOY.md](DEPLOY.md) for GitHub, Vercel, Render and UptimeRobot setup. Preferred names `aterus.vercel.app` and `aterus.onrender.com` require provider availability confirmation. No monitor or permanent Vercel/Render deployment is claimed without provider evidence.
+See [DEPLOY.md](DEPLOY.md) for GitHub, Render and UptimeRobot setup. The main public URL is https://aterus.onrender.com. Vercel hosting is optional.
 
 The desktop downloads contain third-party notices. `dist/releases.json` records archive SHA-256 checksums; this is an integrity record, not a code-signing certificate. The Mac app has no Apple Developer ID notarization.
 
