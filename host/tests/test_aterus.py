@@ -6,6 +6,7 @@ import io
 from types import SimpleNamespace
 import json
 import os
+import sys
 from pathlib import Path
 import tempfile
 import threading
@@ -54,7 +55,7 @@ class HubTests(unittest.TestCase):
             worker = SimpleNamespace(stdin=io.BytesIO(), stdout=io.BytesIO((json.dumps({'exit':code})+'\n').encode()),
                                      poll=lambda:None, wait=lambda:code)
             self.hub.live[sid] = worker
-            with patch.object(self.hub, 'session', wraps=self.hub.session) as read:
+            with patch.object(self.hub, 'rows', wraps=self.hub.rows) as read:
                 if state == 'running':
                     self.hub.control(sid, {'input':'aGVsbG8='})
                     self.assertEqual(worker.stdin.getvalue(), b'{"input": "aGVsbG8="}\n')
@@ -63,7 +64,7 @@ class HubTests(unittest.TestCase):
                         self.hub.control(sid, {'input':'aGVsbG8='})
                     self.assertEqual(worker.stdin.getvalue(), b'')
                 self.assertEqual(read.call_count, 1)
-            with patch.object(self.hub, 'session', wraps=self.hub.session) as read:
+            with patch.object(self.hub, 'rows', wraps=self.hub.rows) as read:
                 self.hub.collect(sid, worker)
                 self.assertEqual(read.call_count, 1)
             self.assertEqual(self.hub.session(sid)['state'], expected)
@@ -103,8 +104,7 @@ class HubTests(unittest.TestCase):
     def test_real_pty_interactive_input_exit_and_no_shell_fallback(self):
         fake = self.root / 'fake-agent'
         fake.write_text('#!/usr/bin/env python3\nimport os\nprint("TTY="+str(os.isatty(0)), flush=True)\nprint("REPLY="+input(), flush=True)\n')
-        fake.chmod(0o700)
-        with patch.object(aterus.shutil, 'which', return_value=str(fake)):
+        with patch.object(aterus, 'agent_command', return_value=[sys.executable, str(fake)]):
             session = self.hub.start({'agent':'kiro','cwd':str(self.project)})
         sid = session['id']
         deadline = time.time() + 6
@@ -126,10 +126,15 @@ class HubTests(unittest.TestCase):
     def test_stop_kills_running_terminal(self):
         fake = self.root / 'fake-agent'
         fake.write_text('#!/usr/bin/env python3\nimport time\nprint("ready",flush=True)\ntime.sleep(100)\n')
-        fake.chmod(0o700)
-        with patch.object(aterus.shutil, 'which', return_value=str(fake)):
+        with patch.object(aterus, 'agent_command', return_value=[sys.executable, str(fake)]):
             session = self.hub.start({'agent':'kiro','cwd':str(self.project)})
-        time.sleep(.2)
+        log = self.hub.data / (session['id'] + '.log')
+        deadline = time.time() + 6
+        while time.time() < deadline:
+            if log.exists() and b'ready' in log.read_bytes():
+                break
+            time.sleep(.03)
+        self.assertIn(b'ready', log.read_bytes())
         self.hub.control(session['id'], {'stop':True})
         with self.assertRaisesRegex(ValueError, 'stopping|no longer running'):
             self.hub.control(session['id'], {'input':base64.b64encode(b'no input\r').decode()})

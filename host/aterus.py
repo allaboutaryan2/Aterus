@@ -18,7 +18,9 @@ from pathlib import Path
 import secrets
 import shutil
 import signal
+import socket
 import sqlite3
+import stat
 import subprocess
 import sys
 import threading
@@ -72,13 +74,16 @@ def open_project_file(workspace, relative):
         raise ValueError('File downloads/previews on Windows are not enabled until reparse-point-safe access is verified')
     parts = Path(relative).parts
     directory = os.open(Path(workspace).resolve(), os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    return _open_regular_file(directory, parts)
+
+
+def _open_regular_file(directory, parts):
     try:
         for part in parts[:-1]:
             child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
             os.close(directory)
             directory = child
         descriptor = os.open(parts[-1], os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
-        import stat
         if not stat.S_ISREG(os.fstat(descriptor).st_mode):
             os.close(descriptor)
             raise ValueError('Only regular files are supported')
@@ -108,6 +113,7 @@ class Hub:
                 raise ValueError('Another Aterus service is using this data directory')
             raise
         self.workspace = str(Path(workspace).resolve())
+        self.workspace_fd = os.open(self.workspace, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW) if os.name != 'nt' else None
         self.lock = threading.RLock()
         self.db = sqlite3.connect(self.data / 'aterus.db', check_same_thread=False)
         self.db.row_factory = sqlite3.Row
@@ -163,7 +169,43 @@ class Hub:
         rows = self.rows('SELECT sessions.*,attachments.kind AS attachment_kind FROM sessions LEFT JOIN attachments ON sessions.id=attachments.session_id WHERE sessions.id=?', (sid,))
         if not rows:
             raise ValueError('Session not found')
+        if not self.session_allowed(rows[0]):
+            raise ValueError('Session is outside the current workspace')
         return rows[0]
+
+    def session_allowed(self, session):
+        try:
+            Path(session['cwd']).resolve().relative_to(self.workspace)
+            return True
+        except (OSError, RuntimeError, TypeError, ValueError):
+            return False
+
+    def project_directory(self, session):
+        if not self.session_allowed(session):
+            raise ValueError('Session is outside the current workspace')
+        if os.name == 'nt':
+            raise ValueError('Windows project files are disabled until reparse-point-safe access is verified')
+        parts = Path(session['cwd']).relative_to(self.workspace).parts
+        if any(part == '..' for part in parts):
+            raise ValueError('Session is outside the current workspace')
+        directory = os.dup(self.workspace_fd)
+        try:
+            for part in parts:
+                child = os.open(part, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW, dir_fd=directory)
+                os.close(directory)
+                directory = child
+            return directory
+        except Exception:
+            os.close(directory)
+            raise
+
+    def open_file(self, session, relative):
+        path = Path(relative)
+        if path.is_absolute() or any(part.startswith('.') or part == 'node_modules' for part in path.parts):
+            raise ValueError('Hidden and dependency files are excluded')
+        if not path.parts:
+            raise ValueError('File not found')
+        return _open_regular_file(self.project_directory(session), path.parts)
 
     def start(self, request, *, launch=None, environment=None):
         if len(self.live) >= 12:
@@ -270,7 +312,8 @@ class Hub:
             with self.lock:
                 self.live.pop(sid, None)
                 self.collectors.discard(threading.current_thread())
-                session = self.session(sid)
+                # Owned workers still need finalization if their project moved.
+                session = self.rows('SELECT sessions.state,attachments.kind AS attachment_kind FROM sessions LEFT JOIN attachments ON sessions.id=attachments.session_id WHERE sessions.id=?', (sid,))[0]
                 self.execute('UPDATE sessions SET state=?,exit_code=? WHERE id=?',
                              (('detached' if session.get('attachment_kind') == 'opencode-live' else 'stopped') if session['state'] == 'stopping' else ('exited' if exit_code == 0 else 'failed'), exit_code, sid))
 
@@ -301,6 +344,9 @@ class Hub:
             self.connection.stop()
         self.stop_all()
         self.db.close()
+        if self.workspace_fd is not None:
+            os.close(self.workspace_fd)
+            self.workspace_fd = None
         self.instance_lock.close()
 
     def workspace_path(self, cwd):
@@ -325,9 +371,8 @@ class Hub:
             raise ValueError('Invalid file encoding')
         if len(content) > 4 * 1024 * 1024:
             raise ValueError('Upload limit is 4 MiB')
-        root = self.workspace_path(session['cwd'])
         # dir_fd plus O_NOFOLLOW keeps a concurrently swapped uploads symlink out.
-        root_fd = os.open(root, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+        root_fd = self.project_directory(session)
         try:
             try:
                 os.mkdir('uploads', mode=0o700, dir_fd=root_fd)
@@ -359,6 +404,69 @@ class Hub:
                 worker.wait()
         for collector in collectors:
             collector.join(timeout=5)
+
+
+class Server(ThreadingHTTPServer):
+    max_workers = 32
+    max_client_workers = 16
+    request_timeout = 30
+
+    def __init__(self, *args, **kwargs):
+        self.worker_lock = threading.Lock()
+        self.workers = 0
+        self.client_workers = {}
+        self.deadlines = {}
+        self.upload_slot = threading.BoundedSemaphore(1)
+        super().__init__(*args, **kwargs)
+
+    def process_request(self, request, client_address):
+        client = client_address[0]
+        with self.worker_lock:
+            admitted = self.workers < self.max_workers and self.client_workers.get(client, 0) < self.max_client_workers
+            if admitted:
+                self.workers += 1
+                self.client_workers[client] = self.client_workers.get(client, 0) + 1
+        if not admitted:
+            self.shutdown_request(request)
+            return
+        timer = threading.Timer(self.request_timeout, self.expire_request, (request,))
+        timer.daemon = True
+        with self.worker_lock:
+            self.deadlines[request] = timer
+        try:
+            timer.start()
+            super().process_request(request, client_address)
+        except Exception:
+            self.release_request(request, client)
+            raise
+
+    def expire_request(self, request):
+        try:
+            request.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
+    def finish_reading(self, request):
+        with self.worker_lock:
+            timer = self.deadlines.pop(request, None)
+        if timer:
+            timer.cancel()
+
+    def release_request(self, request, client):
+        self.finish_reading(request)
+        with self.worker_lock:
+            self.workers -= 1
+            count = self.client_workers[client] - 1
+            if count:
+                self.client_workers[client] = count
+            else:
+                del self.client_workers[client]
+
+    def process_request_thread(self, request, client_address):
+        try:
+            super().process_request_thread(request, client_address)
+        finally:
+            self.release_request(request, client_address[0])
 
 
 class Handler(BaseHTTPRequestHandler):
@@ -422,6 +530,10 @@ class Handler(BaseHTTPRequestHandler):
             return self.reply(403, {'error': 'Cross-site requests are not allowed'})
         if self.command == 'POST' and self.headers.get('Origin') not in self.server.origins:
             return self.reply(403, {'error': 'Origin check failed'})
+        if self.command == 'POST' and not path.startswith('/api/'):
+            return self.reply(404, {'error': 'Not found'})
+        device = None
+        upload_slot = None
         try:
             body = {}
             if self.command == 'POST':
@@ -432,9 +544,20 @@ class Handler(BaseHTTPRequestHandler):
                     raise ValueError('Transfer encoding is not supported')
                 if self.headers.get('Content-Type', '').split(';')[0].strip() != 'application/json':
                     raise ValueError('Expected application/json')
+                if path.startswith('/api/') and path not in ('/api/bootstrap', '/api/pair', '/api/pair-request', '/api/pair-status'):
+                    device = self.identity()
+                    if not device:
+                        return self.reply(401, {'error': 'Pair this device to continue'})
+                if length > 32768:
+                    slot = self.server.upload_slot
+                    if not slot.acquire(blocking=False):
+                        return self.reply(503, {'error': 'Another upload is in progress. Try again shortly.'})
+                    upload_slot = slot
                 body = json.loads(self.rfile.read(length))
                 if not isinstance(body, dict):
                     raise ValueError('Expected an object')
+            if hasattr(self.server, 'finish_reading'):
+                self.server.finish_reading(self.request)
             if path == '/api/bootstrap' and self.command == 'POST':
                 if self.client_address[0] not in ('127.0.0.1', '::1'):
                     return self.reply(403, {'error': 'Owner bootstrap requires loopback access'})
@@ -461,7 +584,7 @@ class Handler(BaseHTTPRequestHandler):
                     return self.reply(404, {'error': 'Not found'})
                 file = ROOT / 'public' / assets[path]
                 return self.reply(200, file.read_bytes(), mimetypes.guess_type(file.name)[0])
-            device = self.identity()
+            device = device or self.identity()
             if not device:
                 return self.reply(401, {'error': 'Pair this device to continue'})
             if self.command == 'GET':
@@ -471,6 +594,9 @@ class Handler(BaseHTTPRequestHandler):
             self.reply(400, {'error': str(error)[:250]})
         except Exception:
             self.reply(500, {'error': 'Internal error. Check the local service.'})
+        finally:
+            if upload_slot:
+                upload_slot.release()
 
     def get_api(self, path, device):
         query = parse_qs(urlparse(self.path).query)
@@ -535,7 +661,7 @@ class Handler(BaseHTTPRequestHandler):
                         finally:
                             self.hub.status_refreshing = False
                     threading.Thread(target=update_health, daemon=True).start()
-            return self.reply(200, {'agents': agents, 'sessions': self.hub.rows('SELECT sessions.*,attachments.kind AS attachment_kind FROM sessions LEFT JOIN attachments ON sessions.id=attachments.session_id ORDER BY created DESC'),
+            return self.reply(200, {'agents': agents, 'sessions': [session for session in self.hub.rows('SELECT sessions.*,attachments.kind AS attachment_kind FROM sessions LEFT JOIN attachments ON sessions.id=attachments.session_id ORDER BY created DESC') if self.hub.session_allowed(session)],
                 'workspace': self.hub.workspace, 'owner': bool(device['owner']), 'device': device['name'], 'platform': sys.platform, 'terminal_view_enabled': self.hub.terminal_view.enabled})
         if path == '/api/devices' and device['owner']:
             return self.reply(200, self.hub.rows('SELECT hash,name,owner,seen FROM devices'))
@@ -572,34 +698,35 @@ class Handler(BaseHTTPRequestHandler):
             if os.name == 'nt':
                 raise ValueError('Windows project files are disabled until reparse-point-safe access is verified')
             files = []
-            root = Path(session['cwd'])
             # Bounded walk; never follow symlinks or hidden/dependency trees.
             visited = 0
-            for directory, folders, names in os.walk(root, followlinks=False):
-                visited += 1
-                folders[:] = [d for d in folders if not d.startswith('.') and d != 'node_modules' and not (Path(directory) / d).is_symlink()]
-                for name in names:
-                    if name.startswith('.'):
-                        continue
-                    item = Path(directory) / name
-                    if item.is_symlink():
-                        continue
-                    try:
-                        stat = item.stat()
-                        files.append({'path': str(item.relative_to(root)), 'size': stat.st_size, 'modified': stat.st_mtime})
-                    except OSError:
-                        pass
-                if visited >= 300 or len(files) >= 3000:
-                    break
+            root = self.hub.project_directory(session)
+            try:
+                for directory, folders, names, directory_fd in os.fwalk('.', follow_symlinks=False, dir_fd=root):
+                    visited += 1
+                    folders[:] = [d for d in folders if not d.startswith('.') and d != 'node_modules']
+                    for name in names:
+                        if name.startswith('.'):
+                            continue
+                        try:
+                            info = os.stat(name, dir_fd=directory_fd, follow_symlinks=False)
+                            if not stat.S_ISLNK(info.st_mode):
+                                files.append({'path': str(Path(directory) / name), 'size': info.st_size, 'modified': info.st_mtime})
+                        except OSError:
+                            pass
+                    if visited >= 300 or len(files) >= 3000:
+                        break
+            finally:
+                os.close(root)
             return self.reply(200, heapq.nlargest(60, files, key=lambda f: f['modified']))
         if path == '/api/preview':
-            with open_project_file(session['cwd'], query.get('path', [''])[0]) as stream:
+            with self.hub.open_file(session, query.get('path', [''])[0]) as stream:
                 raw = stream.read(262145)
             if b'\0' in raw:
                 raise ValueError('Binary files cannot be previewed as text')
             return self.reply(200, {'text': raw[:262144].decode('utf-8', errors='replace'), 'truncated': len(raw) > 262144})
         if path == '/api/file':
-            with open_project_file(session['cwd'], query.get('path', [''])[0]) as stream:
+            with self.hub.open_file(session, query.get('path', [''])[0]) as stream:
                 content = stream.read(20 * 1024 * 1024 + 1)
             if len(content) > 20 * 1024 * 1024:
                 raise ValueError('Download limit is 20 MiB')
@@ -690,7 +817,7 @@ def create_server(hub, port, public_url=''):
     public = urlparse(public_url)
     if public_url and (public.scheme != 'https' or not public.netloc or public.path not in ('', '/') or public.query or public.fragment or public.username is not None or public.password is not None):
         raise ValueError('Public URL must be an HTTPS origin')
-    server = ThreadingHTTPServer(('127.0.0.1', port), Handler)
+    server = Server(('127.0.0.1', port), Handler)
     server.hub = hub
     actual = server.server_address[1]
     server.public_host = public.netloc

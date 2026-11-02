@@ -5,16 +5,25 @@
     {
       "file": "Aterus-mac-arm64.zip",
       "platform": "macOS Apple Silicon",
-      "size_bytes": 24312327,
-      "sha256": "fd114bdc50e357165007c05f2421a9ea1238f15abb9c8a9443523d00fd915baa"
+      "size_bytes": 24314098,
+      "sha256": "864702b13076d4999fcd17f7ffbd5bd2557e400da9c0c0757ca7eeebb336f4b3"
     },
     {
       "file": "Aterus-host.zip",
       "platform": "source / Windows setup",
-      "size_bytes": 230682,
-      "sha256": "023aff04e2948bbab0598072d6b9deb43a7cbd1094b85044223ba3121ba08a23"
+      "size_bytes": 231698,
+      "sha256": "423fc36e7a1958bf58a1d621d70fe48279a293aa10090d06ee2d89c49ceb4d69"
     }
   ],
   "native_windows_verified": false,
-  "physical_phone_verified": false
+  "physical_phone_verified": false,
+  "host_version": "0.1.1",
+  "security_regressions_passed": 8,
+  "host_test_result": {
+    "total": 98,
+    "passed": 97,
+    "skipped": 1,
+    "source_revision": "122da46442325f060c69b550d35b86568ebc5537",
+    "environment": "user-run isolated Docker"
+  }
 }

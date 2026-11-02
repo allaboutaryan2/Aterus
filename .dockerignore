@@ -1,0 +1,9 @@
+**
+!host/
+!host/**
+host/**/__pycache__/
+host/.aterus-data/
+host/.build-venv/
+host/.venv/
+host/build/
+host/dist/

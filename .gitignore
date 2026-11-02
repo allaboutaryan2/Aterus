@@ -5,5 +5,6 @@ node_modules/
 .env.*
 !.env.example
 *.log
+security-test-results.txt
 __pycache__/
 .vercel

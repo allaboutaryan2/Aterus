@@ -36,12 +36,16 @@ class PairingGate:
         with self.lock:
             now=self.clock()
             while self.attempts and self.attempts[0] < now-600:self.attempts.popleft()
-            if len(self.attempts)>=20:raise ValueError('Too many pairing attempts. Try again in ten minutes.')
-            self.attempts.append(now)
-            expiry=self.codes.pop(str(code).strip().upper(),0)
-            if expiry<=now:raise ValueError('Pairing code is invalid or expired. Generate a new code on the computer.')
+            code=str(code).strip().upper()
+            expiry=self.codes.get(code,0)
+            if expiry<=now:
+                if len(self.attempts)>=20:raise ValueError('Too many pairing attempts. Try again in ten minutes.')
+                self.attempts.append(now)
+                self.codes.pop(code,None)
+                raise ValueError('Pairing code is invalid or expired. Generate a new code on the computer.')
             self.pending={key:r for key,r in self.pending.items() if r['expires_at']>now}
             if len(self.pending)>=32:raise ValueError('Too many pending devices. Reject unused requests on the computer.')
+            self.codes.pop(code)
             identity,secret=secrets.token_hex(16),secrets.token_urlsafe(32)
             verification=str(secrets.randbelow(1000000)).zfill(6)
             self.pending[identity]={'id':identity,'name':str(name).strip()[:80] or 'Phone',
