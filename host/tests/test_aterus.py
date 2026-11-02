@@ -126,10 +126,15 @@ class HubTests(unittest.TestCase):
     def test_stop_kills_running_terminal(self):
         fake = self.root / 'fake-agent'
         fake.write_text('#!/usr/bin/env python3\nimport time\nprint("ready",flush=True)\ntime.sleep(100)\n')
-        fake.chmod(0o700)
-        with patch.object(aterus.shutil, 'which', return_value=str(fake)):
+        with patch.object(aterus, 'agent_command', return_value=[sys.executable, str(fake)]):
             session = self.hub.start({'agent':'kiro','cwd':str(self.project)})
-        time.sleep(.2)
+        log = self.hub.data / (session['id'] + '.log')
+        deadline = time.time() + 6
+        while time.time() < deadline:
+            if log.exists() and b'ready' in log.read_bytes():
+                break
+            time.sleep(.03)
+        self.assertIn(b'ready', log.read_bytes())
         self.hub.control(session['id'], {'stop':True})
         with self.assertRaisesRegex(ValueError, 'stopping|no longer running'):
             self.hub.control(session['id'], {'input':base64.b64encode(b'no input\r').decode()})
